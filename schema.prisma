@@ -1,0 +1,86 @@
+// Prisma schema for Noldo messenger
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(cuid())
+  name         String   @unique
+  passwordHash String
+  avatarUrl    String?
+  bio          String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  sentMessages     Message[]     @relation("MessageFrom")
+  receivedMessages Message[]     @relation("MessageTo")
+  groupMemberships GroupMember[]
+  groupsCreated    Group[]       @relation("GroupCreator")
+  pushSubscriptions PushSubscription[]
+}
+
+model Message {
+  id        String   @id @default(cuid())
+  content   String?
+  imageUrl  String?
+  audioUrl  String?
+  audioDurationSec Int?
+  fromId    String
+  from      User     @relation("MessageFrom", fields: [fromId], references: [id], onDelete: Cascade)
+
+  // Direct message recipient (nullable when message is for a group)
+  toId   String?
+  to     User?   @relation("MessageTo", fields: [toId], references: [id], onDelete: Cascade)
+
+  // Group recipient (nullable when message is direct)
+  groupId String?
+  group   Group?  @relation("GroupMessages", fields: [groupId], references: [id], onDelete: Cascade)
+
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([fromId])
+  @@index([toId])
+  @@index([groupId])
+}
+
+model PushSubscription {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+model Group {
+  id        String   @id @default(cuid())
+  name      String
+  avatarUrl String?
+  createdBy String
+  creator   User     @relation("GroupCreator", fields: [createdBy], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  members  GroupMember[]
+  messages Message[]     @relation("GroupMessages")
+}
+
+model GroupMember {
+  id       String   @id @default(cuid())
+  groupId  String
+  group    Group    @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  userId   String
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  joinedAt DateTime @default(now())
+
+  @@unique([groupId, userId])
+}
